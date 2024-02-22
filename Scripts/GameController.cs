@@ -16,7 +16,6 @@ public class GameController : MonoBehaviour
     {
         hg = GetComponent<HexGrid>();
         hg.GenerateHexGrid(ringCount);
-        SetDropdownOptions();
     }
 
     // Update is called once per frame
@@ -30,6 +29,7 @@ public class GameController : MonoBehaviour
     }
     public void ChooseRing(int ring)
     {
+        if (ring == 0) return;
         selectedRing = ring;
         hg.HighlightHexesInRing(selectedRing);
     }
@@ -39,10 +39,13 @@ public class GameController : MonoBehaviour
     }
     public void rotateRing(bool clockwise)
     {
+        if (hg.isRotating || selectedRing == 0) return;
         hg.RotateHexesInRing(selectedRing, clockwise);
+        selectedRing = 0;
+        hg.dehighlightAll();
     }
     // Function to remove all options from a TMP Dropdown and set options from 0 to a specified number
-    private void SetDropdownOptions()
+    /*private void SetDropdownOptions()
     {
         // Clear existing options
         dropdown.ClearOptions();
@@ -57,5 +60,5 @@ public class GameController : MonoBehaviour
         }
 
         // Assign the options to the dropdown
-    }
+    }*/
 }

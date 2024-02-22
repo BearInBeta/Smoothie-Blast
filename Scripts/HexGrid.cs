@@ -1,7 +1,12 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using TMPro;
+using Unity.VisualScripting;
 using UnityEngine;
+using static UnityEditor.Experimental.AssetDatabaseExperimental.AssetDatabaseCounters;
+using static UnityEngine.ParticleSystem;
+using static UnityEngine.RuleTile.TilingRuleOutput;
 
 public class HexGrid : MonoBehaviour
 {
@@ -11,7 +16,7 @@ public class HexGrid : MonoBehaviour
     GameController gameController;
     public float speed;
     private Dictionary<Vector2Int, Hex> hexes = new Dictionary<Vector2Int, Hex>(); // Dictionary to store hexes
-
+    public bool isRotating = false;
     private void Start()
     {
         gameController = GameObject.FindGameObjectWithTag("GameController").GetComponent<GameController>();
@@ -30,6 +35,8 @@ public class HexGrid : MonoBehaviour
                 CreateHex(ring, i);
             }
         }
+
+        checkForClusters();
     }
     public int GetHexRing(Hex hex)
     {
@@ -50,24 +57,30 @@ public class HexGrid : MonoBehaviour
     // Method to create a hex at given axial coordinates
     private void CreateHex(int q, int r)
     {
+        bool createsCluster = true;
+        HexType randHex = null;
+        while (createsCluster)
+        {
+            randHex = gameController.hexTypes[Random.Range(0, gameController.hexTypes.Length)];
+            List<Vector2Int> cluster = new List<Vector2Int>();
+            findCluster(new Vector2Int(q, r), cluster, randHex);
+            createsCluster = cluster.Count >= 3;
+            
+        }
+
+
         Vector3 position = HexOffset(q, r);
         GameObject hexGO = Instantiate(hexPrefab, position, Quaternion.identity, transform);
         Hex hex = hexGO.GetComponent<Hex>();
-        hex.setHexType(gameController.hexTypes[Random.Range(0,gameController.hexTypes.Length)]);
+        hex.setHexType(randHex);
         hex.m_TextMeshPro.text = q + "," + r;
         hexes[new Vector2Int(q, r)] = hex;
     }
     //applies the current positions based on the key value pair
-    private void applyPositions()
-    {
-        foreach (KeyValuePair<Vector2Int, Hex> hex in hexes)
-        {
-            hex.Value.gameObject.transform.position = HexOffset(hex.Key.x, hex.Key.y);
-        }
-    }
 
     private IEnumerator movePositions(GameObject hex, Vector2Int to)
     {
+        
         Vector3 currentPos = hex.transform.position;
         Vector3 targetPos = HexOffset(to.x, to.y);
         float distance = Vector3.Distance(currentPos, targetPos);
@@ -82,6 +95,23 @@ public class HexGrid : MonoBehaviour
 
         hex.transform.position = targetPos;
 
+    }
+    private IEnumerator rotationWaiter(GameObject hex, Vector2Int to)
+    {
+        isRotating = true;
+        Vector3 currentPos = hex.transform.position;
+        Vector3 targetPos = HexOffset(to.x, to.y);
+        float distance = Vector3.Distance(currentPos, targetPos);
+
+        while (distance > 0.01f)
+        {
+            currentPos = hex.transform.position;
+            distance = Vector3.Distance(currentPos, targetPos);
+            yield return null;
+        }
+        checkForClusters();
+        isRotating = false;
+        
     }
     // Method to calculate the offset of a hex at given axial coordinates
     private Vector3 HexOffset(int q, int r)
@@ -105,7 +135,8 @@ public class HexGrid : MonoBehaviour
                 if (getRing(q, r) == ring)
                 {
                     Vector2Int newHex = new Vector2Int(q, r);
-                    hexesInRing.Add(newHex, hexes[newHex]);
+                    if(hexes.ContainsKey(newHex))
+                        hexesInRing.Add(newHex, hexes[newHex]);
                 }
             }
         }
@@ -120,14 +151,18 @@ public class HexGrid : MonoBehaviour
 
     public void HighlightHexesInRing(int ring)
     {
-        foreach (KeyValuePair<Vector2Int, Hex> hex in hexes)
-        {
-            hex.Value.deselectHex();
-        }
+        dehighlightAll();
         Dictionary<Vector2Int, Hex> hexesInRing = GetHexesInRing(ring);
         foreach (KeyValuePair <Vector2Int, Hex> hex in hexesInRing)
         {
             hex.Value.selectHex();
+        }
+    }
+    public void dehighlightAll()
+    {
+        foreach (KeyValuePair<Vector2Int, Hex> hex in hexes)
+        {
+            hex.Value.deselectHex();
         }
     }
 
@@ -146,6 +181,12 @@ public class HexGrid : MonoBehaviour
                 newKey = MoveCounterClockwise(hex.Key);
             }
             StartCoroutine(movePositions(hex.Value.gameObject, newKey));
+            // Get the index of the current element
+
+            if(hexesInRing.Last().Equals(hex))
+            {
+                StartCoroutine(rotationWaiter(hex.Value.gameObject, newKey));
+            }
             hexes[newKey] = hex.Value;
             
 
@@ -169,6 +210,95 @@ public class HexGrid : MonoBehaviour
         int s = -q - r;
 
         return new Vector2Int(-r, -s);
+    }
+
+    public void findCluster(Vector2Int first, List<Vector2Int> cluster, HexType hexType)
+    {
+        cluster.Add(first);
+        List<Vector2Int> neighbours = getNeighbours(first);
+        foreach(Vector2Int neighbor in neighbours)
+        {
+            if (!cluster.Contains(neighbor) && hexes[neighbor].hexType != null && hexes[neighbor].hexType.Equals(hexType))
+            {
+                findCluster(neighbor, cluster, hexType);
+            }
+        }
+    }
+    public void DestroyHexesInCluster(List<Vector2Int> cluster)
+    {
+
+        foreach (Vector2Int hex in cluster)
+        {
+            hexes[hex].DestroyHex();
+        }
+        fillEmptyWithOld();
+    }
+    private void fillEmptyWithOld()
+    {
+        foreach (KeyValuePair<Vector2Int, Hex> hex in hexes)
+        {
+            List<Vector2Int> neighbours = getNeighbours(hex.Key, true);
+            foreach (Vector2Int neighbor in neighbours)
+            {
+                if (hex.Value != null && hexes[neighbor] != null && hexes[neighbor].toBeDestroyed)
+                {
+                    StartCoroutine(movePositions(hex.Value.gameObject, neighbor));
+                    hexes[neighbor] = hex.Value;
+                    hexes.Remove(hex.Key);
+                    CreateHex(hex.Key.x, hex.Key.y);
+                    fillEmptyWithOld();
+                    return;
+                }
+            }
+        }
+    }
+    private void checkForClusters()
+    {
+        List<Vector2Int> checkedHexes = new List<Vector2Int>();
+        List <Vector2Int> toDestroy = new List<Vector2Int>();
+        foreach (KeyValuePair<Vector2Int, Hex> hex in hexes)
+        {
+            if (!checkedHexes.Contains(hex.Key))
+            {
+                List<Vector2Int> cluster = new List<Vector2Int>();
+                findCluster(hex.Key, cluster, hex.Value.hexType);
+                foreach (Vector2Int neighbor in cluster)
+                {
+                    checkedHexes.Add(neighbor);
+                    if (cluster.Count >= 3)
+                    {
+                        toDestroy.Add(neighbor);
+                }
+                }
+                
+            }
+        }
+
+        DestroyHexesInCluster(toDestroy);
+
+    }
+    public List<Vector2Int> getNeighbours(Vector2Int first, bool south = false)
+    {
+        List<Vector2Int> neighbours = new List<Vector2Int>();
+
+
+        Vector2Int[] allNeighbours = {new Vector2Int(1, 0), new Vector2Int(1, -1), new Vector2Int(0, -1), new Vector2Int(-1, 0), new Vector2Int(-1,1), new Vector2Int(0,1)};
+        Vector2Int[] southNeighbours = { new Vector2Int(1, -1), new Vector2Int(0, -1) };
+        Vector2Int[] possibleNeighbours = allNeighbours;
+        if(south)
+        {
+            possibleNeighbours = southNeighbours;
+        }
+        foreach (Vector2Int possibleNeighbour in possibleNeighbours)
+        {
+            if (hexes.ContainsKey(first + possibleNeighbour))
+            {
+                neighbours.Add(first + possibleNeighbour);
+            }
+        }
+
+        return neighbours;
+
     }
 
 }

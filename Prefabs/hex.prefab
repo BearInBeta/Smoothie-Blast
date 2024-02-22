@@ -445,6 +445,7 @@ MonoBehaviour:
   m_TextMeshPro: {fileID: 4352252301850168260}
   fruitHolder: {fileID: 1586730025170440243}
   fruitSelector: {fileID: 3649697985090992431}
+  toBeDestroyed: 0
 --- !u!60 &6151257825772479008
 PolygonCollider2D:
   m_ObjectHideFlags: 0
@@ -455,6 +456,25 @@ PolygonCollider2D:
   m_Enabled: 1
   m_Density: 1
   m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ForceSendLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ForceReceiveLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ContactCaptureLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_CallbackLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
   m_IsTrigger: 1
   m_UsedByEffector: 0
   m_UsedByComposite: 0
@@ -476,3 +496,4 @@ PolygonCollider2D:
       - {x: 4, y: -2.5}
       - {x: 4, y: 2.5}
       - {x: 0, y: 5}
+  m_UseDelaunayMesh: 0
