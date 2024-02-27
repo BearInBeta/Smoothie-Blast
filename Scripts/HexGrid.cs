@@ -198,7 +198,7 @@ public class HexGrid : MonoBehaviour
     }
     private IEnumerator rotationWaiter(GameObject hex, Vector2Int to)
     {
-        isRotating = true;
+        
         Vector3 currentPos = hex.transform.position;
         Vector3 targetPos = HexOffset(to.x, to.y);
         float distance = Vector3.Distance(currentPos, targetPos);
@@ -219,6 +219,7 @@ public class HexGrid : MonoBehaviour
     }
     public void RotateHexesInRing(int ring, bool clockwise)
     {
+        isRotating = true;
         Dictionary<Vector2Int, Hex> hexesInRing = GetHexesInRing(ring);
         foreach (KeyValuePair<Vector2Int, Hex> hex in hexesInRing)
         {
